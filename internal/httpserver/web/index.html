@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>System Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+      :root {
+        --mx-bg: #070f0a;
+        --mx-panel: #0b1220;
+        --mx-green: #16a34a;
+        --mx-green-2: #22c55e;
+        --mx-green-3: #34d399;
+        --mx-grid: rgba(34, 197, 94, 0.06);
+        --mx-grid-2: rgba(34, 197, 94, 0.04);
+        --mx-border: rgba(34, 197, 94, 0.25);
+      }
+      * {
+        scrollbar-color: var(--mx-green-2) var(--mx-panel);
+        scrollbar-width: thin;
+      }
+      *::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      *::-webkit-scrollbar-track {
+        background: var(--mx-panel);
+      }
+      *::-webkit-scrollbar-thumb {
+        background: linear-gradient(180deg, var(--mx-green), var(--mx-green-2));
+        border-radius: 8px;
+        border: 2px solid var(--mx-panel);
+      }
+      *::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(
+          180deg,
+          var(--mx-green-2),
+          var(--mx-green-3)
+        );
+      }
+      .scroll-area {
+        scrollbar-gutter: stable both-edges;
+      }
+
+      .panel {
+        position: relative;
+        background-color: var(--mx-panel);
+        border: 1px solid var(--mx-border);
+        box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.12) inset,
+          0 0 24px rgba(34, 197, 94, 0.08);
+        border-radius: 0.5rem;
+        overflow: hidden;
+      }
+      .panel::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image: repeating-linear-gradient(
+            0deg,
+            var(--mx-grid) 0 1px,
+            transparent 1px 20px
+          ),
+          repeating-linear-gradient(
+            90deg,
+            var(--mx-grid-2) 0 1px,
+            transparent 1px 20px
+          );
+        pointer-events: none;
+      }
+      .panel::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image: repeating-linear-gradient(
+          180deg,
+          rgba(16, 185, 129, 0.05) 0 2px,
+          transparent 2px 4px
+        );
+        mix-blend-mode: screen;
+        pointer-events: none;
+      }
+      .panel h2 {
+        text-shadow: 0 0 6px rgba(34, 197, 94, 0.45);
+      }
+
+      .tbl thead {
+        background: rgba(34, 197, 94, 0.08);
+        color: #c7ffdf;
+      }
+      .tbl tbody tr:nth-child(even) {
+        background: rgba(34, 197, 94, 0.03);
+      }
+      .tbl tbody tr:hover {
+        background: rgba(34, 197, 94, 0.08);
+      }
+      .tbl th,
+      .tbl td {
+        border-bottom: 1px solid rgba(34, 197, 94, 0.12);
+      }
+
+      .ascii-line {
+        letter-spacing: 0.25px;
+        line-height: 1.3;
+      }
+      .ascii-g {
+        color: #22c55e;
+      }
+      .ascii-y {
+        color: #eab308;
+      }
+      .ascii-r {
+        color: #ef4444;
+      }
+      .ascii-d {
+        color: #334155;
+      }
+
+      .accent-green {
+        color: #c7ffdf;
+      }
+      .value-green {
+        color: var(--mx-green-2);
+      }
+    </style>
+  </head>
+  <body class="bg-slate-950 text-slate-100 font-mono text-sm antialiased">
+    <div class="container mx-auto p-4 max-w-[1600px]">
+      <!-- Header -->
+      <div class="panel p-3 mb-3">
+        <div class="flex flex-wrap gap-x-6 gap-y-1 text-xs">
+          <div>
+            <span class="text-slate-400">Hostname:</span>
+            <span id="hostname" class="value-green">—</span>
+          </div>
+          <div>
+            <span class="text-slate-400">OS:</span> <span id="os">—</span>
+          </div>
+          <div>
+            <span class="text-slate-400">Uptime:</span>
+            <span id="uptime">—</span>
+          </div>
+          <div>
+            <span class="text-slate-400">Load avg:</span>
+            <span id="load" class="text-yellow-400">—</span>
+          </div>
+          <div class="ml-auto text-slate-500" id="timestamp">—</div>
+        </div>
+      </div>
+
+      <!-- CPU + Mem/Swap -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+        <!-- CPU -->
+        <div class="panel p-3">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-sm font-semibold text-slate-200">CPU</h2>
+            <span id="cpu-total" class="text-green-400 font-bold">0.0%</span>
+          </div>
+          <div class="text-xs text-slate-400 mb-2" id="cpu-model">—</div>
+
+          <!-- ASCII CPU: summary + per-core grid 5x3 -->
+          <div>
+            <pre id="cpu-ascii" class="ascii-line whitespace-pre text-xs"></pre>
+          </div>
+        </div>
+
+        <!-- Memory + Swap -->
+        <div class="panel p-3">
+          <h2 class="text-sm font-semibold text-slate-200 mb-2">
+            Memory &amp; Swap
+          </h2>
+
+          <!-- ASCII Mem/Swap -->
+          <div>
+            <pre id="mem-ascii" class="ascii-line whitespace-pre text-xs"></pre>
+            <pre
+              id="swap-ascii"
+              class="ascii-line whitespace-pre text-xs"
+            ></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filesystems + Disk I/O -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+        <div class="panel p-3">
+          <h2 class="text-sm font-semibold text-slate-200 mb-2">Filesystems</h2>
+          <!-- ASCII FS -->
+          <div>
+            <pre id="fs-ascii" class="ascii-line whitespace-pre text-xs"></pre>
+          </div>
+        </div>
+        <div class="panel p-3">
+          <h2 class="text-sm font-semibold text-slate-200 mb-2">Disk I/O</h2>
+          <div class="overflow-auto scroll-area max-h-48">
+            <table class="w-full text-xs tbl">
+              <thead>
+                <tr>
+                  <th class="text-left py-1 px-1">Disk</th>
+                  <th class="text-right py-1 px-1">Read</th>
+                  <th class="text-right py-1 px-1">Write</th>
+                </tr>
+              </thead>
+              <tbody id="disk-io"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Network I/O -->
+      <div class="panel p-3 mb-3">
+        <h2 class="text-sm font-semibold text-slate-200 mb-2">
+          Network Interfaces
+        </h2>
+        <div class="overflow-auto scroll-area">
+          <table class="w-full text-xs tbl">
+            <thead>
+              <tr>
+                <th class="text-left py-1 px-1">Interface</th>
+                <th class="text-right py-1 px-1">RX</th>
+                <th class="text-right py-1 px-1">TX</th>
+                <th class="text-right py-1 px-1">Pkts RX</th>
+                <th class="text-right py-1 px-1">Pkts TX</th>
+                <th class="text-right py-1 px-1">Errs</th>
+                <th class="text-right py-1 px-1">Drop</th>
+              </tr>
+            </thead>
+            <tbody id="net-io"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Temperatures -->
+      <div class="panel p-3 mb-3" id="temps-section">
+        <h2 class="text-sm font-semibold text-slate-200 mb-2">Temperatures</h2>
+        <div class="overflow-auto scroll-area">
+          <table class="w-full text-xs tbl">
+            <thead>
+              <tr>
+                <th class="text-left py-1 px-1">Sensor</th>
+                <th class="text-right py-1 px-1">Temp °C</th>
+                <th class="text-right py-1 px-1">High</th>
+                <th class="text-right py-1 px-1">Critical</th>
+              </tr>
+            </thead>
+            <tbody id="temps"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Top Processes -->
+      <div class="panel p-3">
+        <h2 class="text-sm font-semibold text-slate-200 mb-2">Top Processes</h2>
+        <div class="overflow-auto scroll-area max-h-96">
+          <table class="w-full text-xs tbl">
+            <thead class="sticky top-0">
+              <tr>
+                <th class="text-left py-1 px-1">PID</th>
+                <th class="text-left py-1 px-1">User</th>
+                <th class="text-right py-1 px-1">CPU%</th>
+                <th class="text-right py-1 px-1">MEM%</th>
+                <th class="text-right py-1 px-1">RSS</th>
+                <th class="text-center py-1 px-1">THR</th>
+                <th class="text-center py-1 px-1">NI</th>
+                <th class="text-center py-1 px-1">S</th>
+                <th class="text-left py-1 px-1">Name</th>
+              </tr>
+            </thead>
+            <tbody id="procs"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <script src="/assets/bundle.js"></script>
+  </body>
+</html>

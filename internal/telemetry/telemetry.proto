@@ -1,0 +1,72 @@
+  syntax = "proto3";
+  package telemetry;
+  option go_package = "monitor/proto/telemetry;telemetry";
+
+  message CpuCore {
+    uint32 id = 1;
+    double percent = 2;
+    double mhz = 3;           // nominal/current if available
+  }
+
+  message CpuSummary {
+    double total_percent = 1;
+    repeated CpuCore cores = 2;
+    uint32 logical = 3;
+    uint32 physical = 4;
+    string model_name = 5;
+  }
+
+  message LoadAvg { double load1 = 1; double load5 = 2; double load15 = 3; }
+
+  message Mem {
+    uint64 total = 1; uint64 used = 2; uint64 free = 3; uint64 available = 4; double used_percent = 5;
+  }
+  message Swap {
+    uint64 total = 1; uint64 used = 2; uint64 free = 3; double used_percent = 4;
+  }
+
+  message FsUsage {
+    string mountpoint = 1; string fstype = 2;
+    uint64 total = 3; uint64 used = 4; uint64 free = 5; double used_percent = 6;
+  }
+  message DiskIO {
+    string name = 1; uint64 read_bytes = 2; uint64 write_bytes = 3; uint64 read_count = 4; uint64 write_count = 5;
+  }
+
+  message NetIF {
+    string name = 1; string hwaddr = 2; repeated string addrs = 3;
+    uint64 bytes_sent = 4; uint64 bytes_recv = 5; uint64 packets_sent = 6; uint64 packets_recv = 7; uint64 errin = 8; uint64 errout = 9; uint64 dropin = 10; uint64 dropout = 11;
+  }
+
+  message HostInfo {
+    string hostname = 1; string os = 2; string platform = 3; string platform_family = 4; string platform_version = 5; string kernel_version = 6;
+    uint64 uptime_sec = 7; uint64 boot_time = 8; string virtualization_system = 9; string virtualization_role = 10;
+  }
+
+  message Temperature {
+    string sensor_key = 1; double temperature = 2; double high = 3; double critical = 4;
+  }
+
+  message Proc {
+    int32 pid = 1; string name = 2; string username = 3; double cpu_percent = 4; float mem_percent = 5; uint64 rss = 6; int32 nice = 7; int32 threads = 8; string status = 9;
+  }
+
+  message Snapshot {
+    int64 collected_unix_ms = 1;
+    CpuSummary cpu = 2;
+    LoadAvg load = 3;
+    Mem mem = 4;
+    Swap swap = 5;
+    repeated FsUsage filesystems = 6;
+    repeated DiskIO disk_io = 7;
+    repeated NetIF net = 8;
+    HostInfo host = 9;
+    repeated Temperature temperatures = 10;
+    repeated Proc top_procs = 11;
+  }
+
+  message SubscribeRequest { uint32 interval_ms = 1; uint32 top_n = 2; }
+
+  service Telemetry {
+    rpc SubscribeMetrics(SubscribeRequest) returns (stream Snapshot);
+  }
