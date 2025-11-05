@@ -1,10 +1,6 @@
-// internal/httpserver/web/assets/app.browser.js
 const messages = require("./telemetry_pb.js");
 const services = require("./telemetry_grpc_web_pb.js");
 
-const client = new services.TelemetryClient(window.location.origin, null, null);
-
-// ---------- Formatters ----------
 function fmtBytes(x) {
   if (!x) return "0 B";
   const u = ["B", "KB", "MB", "GB", "TB", "PB"];
@@ -24,16 +20,13 @@ function fmtUptime(sec) {
   return `${d}d ${h}h ${m}m`;
 }
 
-// ---------- ASCII bars (htop-like) ----------
 const BAR_W = 28;
 
 function asciiBar(p, w = BAR_W) {
   const pct = Math.max(0, Math.min(100, p || 0));
   const filled = Math.round((pct / 100) * w);
-
   const gEnd = Math.round(0.6 * w);
   const yEnd = Math.round(0.85 * w);
-
   const g = Math.max(0, Math.min(filled, gEnd));
   const y = Math.max(0, Math.min(filled - gEnd, yEnd - gEnd));
   const r = Math.max(0, filled - yEnd);
@@ -41,21 +34,17 @@ function asciiBar(p, w = BAR_W) {
 
   const seg = (ch, n, cls) =>
     n > 0 ? `<span class="${cls}">${ch.repeat(n)}</span>` : "";
-  return `[${seg("|", g, "ascii-g")}${seg("|", y, "ascii-y")}${seg(
+  return `[${seg("|", g, "bar-g")}${seg("|", y, "bar-y")}${seg(
     "|",
     r,
-    "ascii-r"
-  )}${seg(".", d, "ascii-d")}]`;
+    "bar-r"
+  )}${seg(" ", d, "bar-d")}]`;
 }
 
-// Рендерим CPU: 5 ядер в строчку (как htop)
 function renderCpuAscii(cpu) {
   const lines = [];
   const total = cpu ? cpu.getTotalPercent() : 0;
-
-  // Суммарный CPU
-  lines.push(`CPU  ${asciiBar(total)} ${total.toFixed(1)}%`);
-
+  lines.push(`CPU  ${asciiBar(total)} ${total.toFixed(1).padStart(6, " ")}%`);
   if (cpu) {
     const cores = cpu.getCoresList();
     const perRow = 5;
@@ -65,12 +54,11 @@ function renderCpuAscii(cpu) {
         const id = typeof c.getId === "function" ? c.getId() : "";
         const p = c.getPercent();
         const label = String(id).padStart(2, " ");
-        return `${label} ${asciiBar(p, 20)} ${p.toFixed(1)}%`;
+        return `${label} ${asciiBar(p, 20)} ${p.toFixed(1).padStart(6, " ")}%`;
       });
       lines.push(rowLines.join("  "));
     }
   }
-
   return lines.join("\n");
 }
 
@@ -79,7 +67,9 @@ function renderMemAscii(mem) {
   const used = fmtBytes(mem.getUsed());
   const total = fmtBytes(mem.getTotal());
   const pct = mem.getUsedPercent();
-  return `Mem ${asciiBar(pct)} ${pct.toFixed(1)}% (${used} / ${total})`;
+  return `Mem ${asciiBar(pct)} ${pct
+    .toFixed(1)
+    .padStart(6, " ")}% (${used} / ${total})`;
 }
 
 function renderSwapAscii(swap) {
@@ -87,7 +77,9 @@ function renderSwapAscii(swap) {
   const used = fmtBytes(swap.getUsed());
   const total = fmtBytes(swap.getTotal());
   const pct = swap.getUsedPercent();
-  return `Swp ${asciiBar(pct)} ${pct.toFixed(1)}% (${used} / ${total})`;
+  return `Swp ${asciiBar(pct)} ${pct
+    .toFixed(1)
+    .padStart(6, " ")}% (${used} / ${total})`;
 }
 
 function renderFsAscii(fsList) {
@@ -100,19 +92,15 @@ function renderFsAscii(fsList) {
     const total = fmtBytes(fs.getTotal());
     const name = (mp || "").slice(0, 14).padEnd(14, " ");
     lines.push(
-      `${name} ${asciiBar(p, 22)} ${p.toFixed(1)}% (${used} / ${total})`
+      `${name} ${asciiBar(p, 22)} ${p
+        .toFixed(1)
+        .padStart(6, " ")}% (${used} / ${total})`
     );
   });
   return lines.join("\n");
 }
 
-// ---------- UI update ----------
-let lastSnapshot = null;
-
 function updateUI(snap) {
-  lastSnapshot = snap;
-
-  // Timestamp
   const tsEl = document.getElementById("timestamp");
   const collected =
     typeof snap.getCollectedUnixMs === "function"
@@ -120,7 +108,6 @@ function updateUI(snap) {
       : Date.now();
   if (tsEl) tsEl.textContent = new Date(collected).toLocaleTimeString();
 
-  // Host
   const host = snap.getHost && snap.getHost();
   if (host) {
     const hn = document.getElementById("hostname");
@@ -133,7 +120,6 @@ function updateUI(snap) {
     if (up) up.textContent = fmtUptime(host.getUptimeSec());
   }
 
-  // Load
   const load = snap.getLoad && snap.getLoad();
   if (load) {
     const el = document.getElementById("load");
@@ -143,118 +129,93 @@ function updateUI(snap) {
         .toFixed(2)} ${load.getLoad15().toFixed(2)}`;
   }
 
-  // CPU
   const cpu = snap.getCpu && snap.getCpu();
   if (cpu) {
     const totalEl = document.getElementById("cpu-total");
     if (totalEl) totalEl.textContent = cpu.getTotalPercent().toFixed(1) + "%";
-
     const mdl = document.getElementById("cpu-model");
     if (mdl)
       mdl.textContent = `${cpu.getModelName()} (${cpu.getLogical()} cores, ${cpu.getPhysical()} phys)`;
-
-    // ASCII CPU
     const elCpu = document.getElementById("cpu-ascii");
     if (elCpu) elCpu.innerHTML = renderCpuAscii(cpu);
   }
 
-  // Memory
   const mem = snap.getMem && snap.getMem();
   const elMem = document.getElementById("mem-ascii");
   if (elMem) elMem.innerHTML = renderMemAscii(mem);
 
-  // Swap
   const swap = snap.getSwap && snap.getSwap();
   const elSwp = document.getElementById("swap-ascii");
   if (elSwp) elSwp.innerHTML = renderSwapAscii(swap);
 
-  // Filesystems
   const fsList = snap.getFilesystemsList ? snap.getFilesystemsList() : [];
   const fsAscii = document.getElementById("fs-ascii");
   if (fsAscii) fsAscii.innerHTML = renderFsAscii(fsList);
 
-  // Disk I/O
   const diskList = snap.getDiskIoList ? snap.getDiskIoList() : [];
   const diskTbody = document.getElementById("disk-io");
   if (diskTbody) {
     diskTbody.innerHTML = "";
     diskList.forEach((d) => {
       const tr = document.createElement("tr");
-      tr.className = "border-b border-slate-800";
-      tr.innerHTML = `<td class="py-1">${d.getName()}</td>
-                      <td class="text-right text-green-400">${fmtBytes(
-                        d.getReadBytes()
-                      )}</td>
-                      <td class="text-right text-red-400">${fmtBytes(
-                        d.getWriteBytes()
-                      )}</td>`;
+      tr.innerHTML = `<td class="col-disk">${d.getName()}</td><td class="col-disk-read">${fmtBytes(
+        d.getReadBytes()
+      )}</td><td class="col-disk-write" style="color: #ef4444">${fmtBytes(
+        d.getWriteBytes()
+      )}</td>`;
       diskTbody.appendChild(tr);
     });
   }
 
-  // Network I/O
   const netList = snap.getNetList ? snap.getNetList() : [];
   const netTbody = document.getElementById("net-io");
   if (netTbody) {
     netTbody.innerHTML = "";
     netList.forEach((n) => {
       const tr = document.createElement("tr");
-      tr.className = "border-b border-slate-800";
-      tr.innerHTML = `<td class="py-1">${n.getName()}</td>
-                      <td class="text-right text-blue-400">${fmtBytes(
-                        n.getBytesRecv()
-                      )}</td>
-                      <td class="text-right text-yellow-400">${fmtBytes(
-                        n.getBytesSent()
-                      )}</td>
-                      <td class="text-right">${n.getPacketsRecv()}</td>
-                      <td class="text-right">${n.getPacketsSent()}</td>
-                      <td class="text-right text-red-400">${
-                        n.getErrin() + n.getErrout()
-                      }</td>
-                      <td class="text-right text-orange-400">${
-                        n.getDropin() + n.getDropout()
-                      }</td>`;
+      tr.innerHTML = `<td class="col-iface">${n.getName()}</td><td class="col-rx" style="color: #60a5fa">${fmtBytes(
+        n.getBytesRecv()
+      )}</td><td class="col-tx" style="color: #eab308">${fmtBytes(
+        n.getBytesSent()
+      )}</td><td class="col-pkts-rx">${n.getPacketsRecv()}</td><td class="col-pkts-tx">${n.getPacketsSent()}</td><td class="col-errs" style="color: #ef4444">${
+        n.getErrin() + n.getErrout()
+      }</td><td class="col-drop" style="color: #fb923c">${
+        n.getDropin() + n.getDropout()
+      }</td>`;
       netTbody.appendChild(tr);
     });
   }
 
-  // Temperatures
   const tempList = snap.getTemperaturesList ? snap.getTemperaturesList() : [];
   const tempTbody = document.getElementById("temps");
   const tempsSec = document.getElementById("temps-section");
   if (tempTbody && tempsSec) {
     tempTbody.innerHTML = "";
     if (!tempList || tempList.length === 0) {
-      tempsSec.classList.add("hidden");
+      tempsSec.style.display = "none";
     } else {
-      tempsSec.classList.remove("hidden");
+      tempsSec.style.display = "";
       tempList.forEach((t) => {
         const temp = t.getTemperature();
         const colorClass =
           temp > t.getCritical() && t.getCritical() > 0
-            ? "text-red-400"
+            ? 'style="color: #ef4444"'
             : temp > t.getHigh() && t.getHigh() > 0
-            ? "text-yellow-400"
-            : "text-slate-300";
+            ? 'style="color: #eab308"'
+            : "";
         const tr = document.createElement("tr");
-        tr.className = "border-b border-slate-800";
-        tr.innerHTML = `<td class="py-1">${t.getSensorKey()}</td>
-                        <td class="text-right ${colorClass}">${temp.toFixed(
+        tr.innerHTML = `<td class="col-sensor">${t.getSensorKey()}</td><td class="col-temp" ${colorClass}>${temp.toFixed(
           1
-        )}</td>
-                        <td class="text-right text-slate-500">${t
-                          .getHigh()
-                          .toFixed(1)}</td>
-                        <td class="text-right text-slate-500">${t
-                          .getCritical()
-                          .toFixed(1)}</td>`;
+        )}</td><td class="col-high" style="color: #94a3b8">${t
+          .getHigh()
+          .toFixed(1)}</td><td class="col-crit" style="color: #94a3b8">${t
+          .getCritical()
+          .toFixed(1)}</td>`;
         tempTbody.appendChild(tr);
       });
     }
   }
 
-  // Top processes
   const procList = snap.getTopProcsList ? snap.getTopProcsList() : [];
   const procTbody = document.getElementById("procs");
   if (procTbody) {
@@ -262,37 +223,91 @@ function updateUI(snap) {
     procList.forEach((p) => {
       const cpuClass =
         p.getCpuPercent() > 50
-          ? "text-red-400"
+          ? 'style="color: #ef4444"'
           : p.getCpuPercent() > 20
-          ? "text-yellow-400"
-          : "text-slate-300";
+          ? 'style="color: #eab308"'
+          : "";
       const tr = document.createElement("tr");
-      tr.className = "border-b border-slate-800 hover:bg-slate-800";
-      tr.innerHTML = `<td class="py-1">${p.getPid()}</td>
-                      <td class="truncate max-w-[80px]" title="${p.getUsername()}">${p.getUsername()}</td>
-                      <td class="text-right ${cpuClass}">${p
+      tr.innerHTML = `<td class="col-pid">${p.getPid()}</td><td class="col-user">${p.getUsername()}</td><td class="col-cpu" ${cpuClass}>${p
         .getCpuPercent()
-        .toFixed(1)}</td>
-                      <td class="text-right text-blue-400">${p
-                        .getMemPercent()
-                        .toFixed(1)}</td>
-                      <td class="text-right">${fmtBytes(p.getRss())}</td>
-                      <td class="text-center text-slate-500">${p.getThreads()}</td>
-                      <td class="text-center text-slate-500">${p.getNice()}</td>
-                      <td class="text-center text-slate-400">${p.getStatus()}</td>
-                      <td class="truncate max-w-[200px]" title="${p.getName()}">${p.getName()}</td>`;
+        .toFixed(1)}</td><td class="col-mem" style="color: #60a5fa">${p
+        .getMemPercent()
+        .toFixed(1)}</td><td class="col-rss">${fmtBytes(
+        p.getRss()
+      )}</td><td class="col-thr">${p.getThreads()}</td><td class="col-ni">${p.getNice()}</td><td class="col-status">${p.getStatus()}</td><td class="col-name">${p.getName()}</td>`;
       procTbody.appendChild(tr);
     });
   }
 }
 
-// ---------- Stream subscribe ----------
-const req = new messages.SubscribeRequest();
-req.setIntervalMs(1000);
-req.setTopN(50);
+let stream;
+let client;
+let updateInterval;
+let lastUpdateTime = Date.now();
+const SLEEP_THRESHOLD = 5000;
 
-const stream = client.subscribeMetrics(req, {});
-stream.on("data", (snap) => updateUI(snap));
-stream.on("status", (s) => console.log("grpc-web status:", s));
-stream.on("error", (e) => console.error("grpc-web error:", e));
-stream.on("end", () => console.log("grpc-web end"));
+function detectSleepAndReconnect() {
+  const now = Date.now();
+  const timeSinceLastUpdate = now - lastUpdateTime;
+  if (timeSinceLastUpdate > SLEEP_THRESHOLD) {
+    console.log("🔔 Sleep detected. Reconnecting...");
+    reconnectStream();
+  }
+  lastUpdateTime = now;
+}
+
+function stopUpdates() {
+  if (updateInterval) {
+    clearInterval(updateInterval);
+    updateInterval = null;
+  }
+}
+
+function startStream() {
+  client = new services.TelemetryClient(window.location.origin, null, null);
+  const req = new messages.SubscribeRequest();
+  req.setIntervalMs(1000);
+  req.setTopN(50);
+
+  stream = client.subscribeMetrics(req, {});
+  stream.on("data", (snap) => {
+    updateUI(snap);
+    lastUpdateTime = Date.now();
+  });
+  stream.on("error", (e) => {
+    console.error("Stream error:", e);
+    reconnectStream();
+  });
+  stream.on("end", () => {
+    console.log("Stream ended");
+    reconnectStream();
+  });
+}
+
+function reconnectStream() {
+  try {
+    if (stream) stream.cancel();
+  } catch (e) {
+    console.log("Cancel error:", e);
+  }
+  setTimeout(startStream, 2000);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  startStream();
+  updateInterval = setInterval(detectSleepAndReconnect, 5000);
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    console.log("👀 Tab visible");
+    detectSleepAndReconnect();
+  }
+});
+
+window.addEventListener("focus", () => {
+  console.log("🎯 Focused");
+  detectSleepAndReconnect();
+});
+
+window.addEventListener("beforeunload", stopUpdates);

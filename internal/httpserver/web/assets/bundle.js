@@ -9552,7 +9552,6 @@ var MonitroApp = (() => {
   // app.browser.js
   var messages = require_telemetry_pb();
   var services = require_telemetry_grpc_web_pb();
-  var client = new services.TelemetryClient(window.location.origin, null, null);
   function fmtBytes(x) {
     if (!x) return "0 B";
     const u = ["B", "KB", "MB", "GB", "TB", "PB"];
@@ -9580,16 +9579,16 @@ var MonitroApp = (() => {
     const r = Math.max(0, filled - yEnd);
     const d = Math.max(0, w - filled);
     const seg = (ch, n, cls) => n > 0 ? `<span class="${cls}">${ch.repeat(n)}</span>` : "";
-    return `[${seg("|", g, "ascii-g")}${seg("|", y, "ascii-y")}${seg(
+    return `[${seg("|", g, "bar-g")}${seg("|", y, "bar-y")}${seg(
       "|",
       r,
-      "ascii-r"
-    )}${seg(".", d, "ascii-d")}]`;
+      "bar-r"
+    )}${seg(" ", d, "bar-d")}]`;
   }
   function renderCpuAscii(cpu) {
     const lines = [];
     const total = cpu ? cpu.getTotalPercent() : 0;
-    lines.push(`CPU  ${asciiBar(total)} ${total.toFixed(1)}%`);
+    lines.push(`CPU  ${asciiBar(total)} ${total.toFixed(1).padStart(6, " ")}%`);
     if (cpu) {
       const cores = cpu.getCoresList();
       const perRow = 5;
@@ -9599,7 +9598,7 @@ var MonitroApp = (() => {
           const id = typeof c.getId === "function" ? c.getId() : "";
           const p = c.getPercent();
           const label = String(id).padStart(2, " ");
-          return `${label} ${asciiBar(p, 20)} ${p.toFixed(1)}%`;
+          return `${label} ${asciiBar(p, 20)} ${p.toFixed(1).padStart(6, " ")}%`;
         });
         lines.push(rowLines.join("  "));
       }
@@ -9611,14 +9610,14 @@ var MonitroApp = (() => {
     const used = fmtBytes(mem.getUsed());
     const total = fmtBytes(mem.getTotal());
     const pct = mem.getUsedPercent();
-    return `Mem ${asciiBar(pct)} ${pct.toFixed(1)}% (${used} / ${total})`;
+    return `Mem ${asciiBar(pct)} ${pct.toFixed(1).padStart(6, " ")}% (${used} / ${total})`;
   }
   function renderSwapAscii(swap) {
     if (!swap) return "";
     const used = fmtBytes(swap.getUsed());
     const total = fmtBytes(swap.getTotal());
     const pct = swap.getUsedPercent();
-    return `Swp ${asciiBar(pct)} ${pct.toFixed(1)}% (${used} / ${total})`;
+    return `Swp ${asciiBar(pct)} ${pct.toFixed(1).padStart(6, " ")}% (${used} / ${total})`;
   }
   function renderFsAscii(fsList) {
     if (!fsList || fsList.length === 0) return "";
@@ -9630,14 +9629,12 @@ var MonitroApp = (() => {
       const total = fmtBytes(fs.getTotal());
       const name = (mp || "").slice(0, 14).padEnd(14, " ");
       lines.push(
-        `${name} ${asciiBar(p, 22)} ${p.toFixed(1)}% (${used} / ${total})`
+        `${name} ${asciiBar(p, 22)} ${p.toFixed(1).padStart(6, " ")}% (${used} / ${total})`
       );
     });
     return lines.join("\n");
   }
-  var lastSnapshot = null;
   function updateUI(snap) {
-    lastSnapshot = snap;
     const tsEl = document.getElementById("timestamp");
     const collected = typeof snap.getCollectedUnixMs === "function" ? snap.getCollectedUnixMs() : Date.now();
     if (tsEl) tsEl.textContent = new Date(collected).toLocaleTimeString();
@@ -9682,12 +9679,9 @@ var MonitroApp = (() => {
       diskTbody.innerHTML = "";
       diskList.forEach((d) => {
         const tr = document.createElement("tr");
-        tr.className = "border-b border-slate-800";
-        tr.innerHTML = `<td class="py-1">${d.getName()}</td>
-                      <td class="text-right text-green-400">${fmtBytes(
+        tr.innerHTML = `<td class="col-disk">${d.getName()}</td><td class="col-disk-read">${fmtBytes(
           d.getReadBytes()
-        )}</td>
-                      <td class="text-right text-red-400">${fmtBytes(
+        )}</td><td class="col-disk-write" style="color: #ef4444">${fmtBytes(
           d.getWriteBytes()
         )}</td>`;
         diskTbody.appendChild(tr);
@@ -9699,18 +9693,11 @@ var MonitroApp = (() => {
       netTbody.innerHTML = "";
       netList.forEach((n) => {
         const tr = document.createElement("tr");
-        tr.className = "border-b border-slate-800";
-        tr.innerHTML = `<td class="py-1">${n.getName()}</td>
-                      <td class="text-right text-blue-400">${fmtBytes(
+        tr.innerHTML = `<td class="col-iface">${n.getName()}</td><td class="col-rx" style="color: #60a5fa">${fmtBytes(
           n.getBytesRecv()
-        )}</td>
-                      <td class="text-right text-yellow-400">${fmtBytes(
+        )}</td><td class="col-tx" style="color: #eab308">${fmtBytes(
           n.getBytesSent()
-        )}</td>
-                      <td class="text-right">${n.getPacketsRecv()}</td>
-                      <td class="text-right">${n.getPacketsSent()}</td>
-                      <td class="text-right text-red-400">${n.getErrin() + n.getErrout()}</td>
-                      <td class="text-right text-orange-400">${n.getDropin() + n.getDropout()}</td>`;
+        )}</td><td class="col-pkts-rx">${n.getPacketsRecv()}</td><td class="col-pkts-tx">${n.getPacketsSent()}</td><td class="col-errs" style="color: #ef4444">${n.getErrin() + n.getErrout()}</td><td class="col-drop" style="color: #fb923c">${n.getDropin() + n.getDropout()}</td>`;
         netTbody.appendChild(tr);
       });
     }
@@ -9720,20 +9707,16 @@ var MonitroApp = (() => {
     if (tempTbody && tempsSec) {
       tempTbody.innerHTML = "";
       if (!tempList || tempList.length === 0) {
-        tempsSec.classList.add("hidden");
+        tempsSec.style.display = "none";
       } else {
-        tempsSec.classList.remove("hidden");
+        tempsSec.style.display = "";
         tempList.forEach((t) => {
           const temp = t.getTemperature();
-          const colorClass = temp > t.getCritical() && t.getCritical() > 0 ? "text-red-400" : temp > t.getHigh() && t.getHigh() > 0 ? "text-yellow-400" : "text-slate-300";
+          const colorClass = temp > t.getCritical() && t.getCritical() > 0 ? 'style="color: #ef4444"' : temp > t.getHigh() && t.getHigh() > 0 ? 'style="color: #eab308"' : "";
           const tr = document.createElement("tr");
-          tr.className = "border-b border-slate-800";
-          tr.innerHTML = `<td class="py-1">${t.getSensorKey()}</td>
-                        <td class="text-right ${colorClass}">${temp.toFixed(
+          tr.innerHTML = `<td class="col-sensor">${t.getSensorKey()}</td><td class="col-temp" ${colorClass}>${temp.toFixed(
             1
-          )}</td>
-                        <td class="text-right text-slate-500">${t.getHigh().toFixed(1)}</td>
-                        <td class="text-right text-slate-500">${t.getCritical().toFixed(1)}</td>`;
+          )}</td><td class="col-high" style="color: #94a3b8">${t.getHigh().toFixed(1)}</td><td class="col-crit" style="color: #94a3b8">${t.getCritical().toFixed(1)}</td>`;
           tempTbody.appendChild(tr);
         });
       }
@@ -9743,28 +9726,75 @@ var MonitroApp = (() => {
     if (procTbody) {
       procTbody.innerHTML = "";
       procList.forEach((p) => {
-        const cpuClass = p.getCpuPercent() > 50 ? "text-red-400" : p.getCpuPercent() > 20 ? "text-yellow-400" : "text-slate-300";
+        const cpuClass = p.getCpuPercent() > 50 ? 'style="color: #ef4444"' : p.getCpuPercent() > 20 ? 'style="color: #eab308"' : "";
         const tr = document.createElement("tr");
-        tr.className = "border-b border-slate-800 hover:bg-slate-800";
-        tr.innerHTML = `<td class="py-1">${p.getPid()}</td>
-                      <td class="truncate max-w-[80px]" title="${p.getUsername()}">${p.getUsername()}</td>
-                      <td class="text-right ${cpuClass}">${p.getCpuPercent().toFixed(1)}</td>
-                      <td class="text-right text-blue-400">${p.getMemPercent().toFixed(1)}</td>
-                      <td class="text-right">${fmtBytes(p.getRss())}</td>
-                      <td class="text-center text-slate-500">${p.getThreads()}</td>
-                      <td class="text-center text-slate-500">${p.getNice()}</td>
-                      <td class="text-center text-slate-400">${p.getStatus()}</td>
-                      <td class="truncate max-w-[200px]" title="${p.getName()}">${p.getName()}</td>`;
+        tr.innerHTML = `<td class="col-pid">${p.getPid()}</td><td class="col-user">${p.getUsername()}</td><td class="col-cpu" ${cpuClass}>${p.getCpuPercent().toFixed(1)}</td><td class="col-mem" style="color: #60a5fa">${p.getMemPercent().toFixed(1)}</td><td class="col-rss">${fmtBytes(
+          p.getRss()
+        )}</td><td class="col-thr">${p.getThreads()}</td><td class="col-ni">${p.getNice()}</td><td class="col-status">${p.getStatus()}</td><td class="col-name">${p.getName()}</td>`;
         procTbody.appendChild(tr);
       });
     }
   }
-  var req = new messages.SubscribeRequest();
-  req.setIntervalMs(1e3);
-  req.setTopN(50);
-  var stream = client.subscribeMetrics(req, {});
-  stream.on("data", (snap) => updateUI(snap));
-  stream.on("status", (s) => console.log("grpc-web status:", s));
-  stream.on("error", (e) => console.error("grpc-web error:", e));
-  stream.on("end", () => console.log("grpc-web end"));
+  var stream;
+  var client;
+  var updateInterval;
+  var lastUpdateTime = Date.now();
+  var SLEEP_THRESHOLD = 5e3;
+  function detectSleepAndReconnect() {
+    const now = Date.now();
+    const timeSinceLastUpdate = now - lastUpdateTime;
+    if (timeSinceLastUpdate > SLEEP_THRESHOLD) {
+      console.log("\u{1F514} Sleep detected. Reconnecting...");
+      reconnectStream();
+    }
+    lastUpdateTime = now;
+  }
+  function stopUpdates() {
+    if (updateInterval) {
+      clearInterval(updateInterval);
+      updateInterval = null;
+    }
+  }
+  function startStream() {
+    client = new services.TelemetryClient(window.location.origin, null, null);
+    const req = new messages.SubscribeRequest();
+    req.setIntervalMs(1e3);
+    req.setTopN(50);
+    stream = client.subscribeMetrics(req, {});
+    stream.on("data", (snap) => {
+      updateUI(snap);
+      lastUpdateTime = Date.now();
+    });
+    stream.on("error", (e) => {
+      console.error("Stream error:", e);
+      reconnectStream();
+    });
+    stream.on("end", () => {
+      console.log("Stream ended");
+      reconnectStream();
+    });
+  }
+  function reconnectStream() {
+    try {
+      if (stream) stream.cancel();
+    } catch (e) {
+      console.log("Cancel error:", e);
+    }
+    setTimeout(startStream, 2e3);
+  }
+  document.addEventListener("DOMContentLoaded", () => {
+    startStream();
+    updateInterval = setInterval(detectSleepAndReconnect, 5e3);
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      console.log("\u{1F440} Tab visible");
+      detectSleepAndReconnect();
+    }
+  });
+  window.addEventListener("focus", () => {
+    console.log("\u{1F3AF} Focused");
+    detectSleepAndReconnect();
+  });
+  window.addEventListener("beforeunload", stopUpdates);
 })();
