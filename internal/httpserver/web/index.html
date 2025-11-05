@@ -345,6 +345,13 @@
       .max-height-20 {
         max-height: 20rem;
       }
+      .net-io-wrapper {
+        max-height: 16rem;
+        overflow-y: auto;
+        overflow-x: hidden;
+        border-radius: 0.5rem;
+        border: 1px solid rgba(34, 197, 94, 0.12) inset;
+      }
 
       @media (max-width: 640px) {
         .grid-cols-2 {
@@ -445,7 +452,7 @@
       <div class="panel">
         <div class="panel-content">
           <h2>Network Interfaces</h2>
-          <div class="table-wrapper">
+          <div class="net-io-wrapper">
             <table class="data-table">
               <thead>
                 <tr>
