@@ -1,0 +1,41 @@
+#/etc/systemd/system/monitor.service
+[Unit]
+Description=System Monitor Service
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=monitor
+Group=monitor
+WorkingDirectory=/opt/monitor
+ExecStart=/opt/monitor/monitor-linux-amd64
+Restart=on-failure
+RestartSec=10s
+
+# Безопасность
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/monitor
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictNamespaces=true
+
+# Лимиты ресурсов
+LimitNOFILE=65535
+LimitNPROC=512
+MemoryMax=512M
+CPUQuota=25%
+
+# Логирование
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=monitor
+
+[Install]
+WantedBy=multi-user.target
